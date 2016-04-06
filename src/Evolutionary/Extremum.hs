@@ -10,7 +10,8 @@ import           Data.Bits            (shiftL)
 import           Numeric.Natural      (Natural)
 
 import           Evolutionary.Genetic (GeneticAlgorithmParams, Individual (..),
-                                       IndividualLength, genericGA)
+                                       IndividualLength, StopCriterion,
+                                       genericGA)
 
 type Range a = (a, a)
 
@@ -29,18 +30,23 @@ individualLength (lo, hi) prec = ceiling $ logBase 2 $ (hi - lo) / prec
 argMax
     :: Double
     -> GeneticAlgorithmParams
+    -> StopCriterion Double
     -> Range Double
     -> (Double -> Double)
-    -> IO Double
-argMax precision gap r f =
-    fromIndividual r len <$> genericGA gap len 1000 (f . fromIndividual r len)
+    -> IO (Double, [[Double]])
+argMax precision gap stopCriterion r f = do
+    convert <$> genericGA gap len (f . fromIndividual') stopCriterion
   where
     len = individualLength r precision
+    fromIndividual' = fromIndividual r len
+    convert (ind, populations) =
+        (fromIndividual' ind, map (map fromIndividual') populations)
 
 argMin
     :: Double
     -> GeneticAlgorithmParams
+    -> StopCriterion Double
     -> Range Double
     -> (Double -> Double)
-    -> IO Double
-argMin p gap r f = argMax p gap r (negate . f)
+    -> IO (Double, [[Double]])
+argMin p gap c r f = argMax p gap c r (negate . f)

@@ -1,5 +1,6 @@
 import           Evolutionary.Extremum (argMin)
-import           Evolutionary.Genetic  (GeneticAlgorithmParams (..))
+import           Evolutionary.Genetic  (GeneticAlgorithmParams (..),
+                                        IterationsCount)
 
 f :: Floating a => a -> a
 f x = cos (2 * x) / (x * x)
@@ -13,7 +14,7 @@ maxV = -2.3
 gap :: GeneticAlgorithmParams
 gap =
     GeneticAlgorithmParams
-    { gapPopulationSize = 100
+    { gapPopulationSize = 10
     , gapCrossingoverProbability = 0.6
     , gapMutationProbability = 1.0e-3
     }
@@ -21,5 +22,8 @@ gap =
 precision :: Double
 precision = 0.001
 
+stopCriterion :: IterationsCount -> Double -> Double -> Bool
+stopCriterion cnt _ _ = cnt >= 10
+
 main :: IO ()
-main = print =<< argMin precision gap (minV, maxV) f
+main = print =<< argMin precision gap stopCriterion (minV, maxV) f

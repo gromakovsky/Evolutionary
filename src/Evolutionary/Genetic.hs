@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell     #-}
 
 -- | Simple genetic algorithm.
 
@@ -9,10 +10,15 @@ module Evolutionary.Genetic
        , IterationsCount
        , PopulationSize
        , FitnessF
+       , StopCriterion
        , GeneticAlgorithmParams (..)
        , genericGA
        ) where
 
+import           Control.Lens            (makeLenses, use, view, (+=), (.=))
+import           Control.Monad.IO.Class  (MonadIO (liftIO))
+import           Control.Monad.RWS       (RWST (runRWST))
+import           Control.Monad.Writer    (tell)
 import           Data.Bits               (Bits (shiftL, setBit, zeroBits, (.|.), (.&.), bit, shiftR, complementBit))
 import           Data.List               (genericLength, genericReplicate,
                                           maximumBy)
@@ -37,6 +43,11 @@ type PopulationSize = Word
 
 type FitnessF a = Individual -> a
 
+-- | StopCriterion is a function which takes number of executed
+-- iterations, value on previous iteration, value on last iterations
+-- and returns True iff execution should stop.
+type StopCriterion a = IterationsCount -> a -> a -> Bool
+
 -- | Parameters for simple genetic algorithm.
 data GeneticAlgorithmParams = GeneticAlgorithmParams
     { gapPopulationSize          :: PopulationSize
@@ -44,33 +55,80 @@ data GeneticAlgorithmParams = GeneticAlgorithmParams
     , gapMutationProbability     :: Double
     } deriving (Show)
 
--- | Generic simple genetic algorithm.
+data GAInput a = GAInput
+    { _gaiParams           :: GeneticAlgorithmParams
+    , _gaiIndividualLength :: IndividualLength
+    , _gaiFitness          :: FitnessF a
+    , _gaiStopCriterion    :: StopCriterion a
+    }
+
+$(makeLenses ''GAInput)
+
+type GALog = [Population]
+
+data GAState = GAState
+    { _gasLastPopulation  :: Population
+    , _gasIterationsCount :: IterationsCount
+    }
+
+$(makeLenses ''GAState)
+
+type GAMonad a = RWST (GAInput a) GALog GAState IO
+
+-- | Simple genetic algorithm in generic form.
 genericGA
     :: (Num a, Ord a, Random a)
     => GeneticAlgorithmParams
     -> IndividualLength
-    -> IterationsCount
     -> FitnessF a
-    -> IO Individual
-genericGA p@GeneticAlgorithmParams{..} len iterCnt fitness =
-    genericGAStep p len iterCnt fitness =<< genPopulation gapPopulationSize len
+    -> StopCriterion a
+    -> IO (Individual, [Population])
+genericGA _gaiParams@GeneticAlgorithmParams{..} _gaiIndividualLength _gaiFitness _gaiStopCriterion = do
+    _gasLastPopulation <- genPopulation gapPopulationSize _gaiIndividualLength
+    let inp =
+            GAInput
+            { ..
+            }
+    let st =
+            GAState
+            { _gasIterationsCount = 0
+            , ..
+            }
+    (individual, _, output) <- runRWST genericGADo inp st
+    return $ (individual, output)
+
+genericGADo :: (Num a, Ord a, Random a) => GAMonad a Individual
+genericGADo = do
+    lastPopulation <- use gasLastPopulation
+    res <- genericGAStep
+    newPopulation <- use gasLastPopulation
+    fitness <- view gaiFitness
+    criterion <- view gaiStopCriterion
+    cnt <- use gasIterationsCount
+    let f = fitness . findBest fitness
+    if (criterion cnt (f lastPopulation) (f newPopulation))
+        then return res
+        else genericGADo
 
 genericGAStep
     :: (Num a, Ord a, Random a)
-    => GeneticAlgorithmParams
-    -> IndividualLength
-    -> IterationsCount
-    -> FitnessF a
-    -> Population
-    -> IO Individual
-genericGAStep _ _ 0 fitness population =
-    return $ maximumBy (comparing fitness) population
-genericGAStep p@GeneticAlgorithmParams{..} len iterations fitness population = do
-    reproduced <- reproduction fitness population
+    => GAMonad a Individual
+genericGAStep = do
+    GeneticAlgorithmParams{..} <- view gaiParams
+    len <- view gaiIndividualLength
+    fitness <- view gaiFitness
+    lastPopulation <- use gasLastPopulation
+    reproduced <- reproduction fitness lastPopulation
     crossingovered <- crossingover gapCrossingoverProbability len reproduced
     mutated <- mutation gapMutationProbability len crossingovered
-    let reduced = reduction gapPopulationSize mutated
-    genericGAStep p len (iterations - 1) fitness reduced
+    newPopulation <- return $ reduction gapPopulationSize mutated
+    tell [newPopulation]
+    gasLastPopulation .= newPopulation
+    gasIterationsCount += 1
+    return $ findBest fitness newPopulation
+
+findBest :: Ord a => FitnessF a -> Population -> Individual
+findBest fitness population = maximumBy (comparing fitness) population
 
 genIndividual :: Word -> IO Individual
 genIndividual len = do
@@ -84,21 +142,27 @@ genPopulation :: PopulationSize -> IndividualLength -> IO Population
 genPopulation sz len = sequence $ genericReplicate sz (genIndividual len)
 
 reproduction
-    :: (Num a, Ord a, Random a)
-    => FitnessF a -> Population -> IO Population
-reproduction fitness population = do
-    let probabilities = map fitness population
-    let minProb = minimum probabilities
-    let nonNegativeProbs = map (\p -> p - minProb) probabilities
-    sequence $
-        replicate (length population) $
-        frequency $ zip nonNegativeProbs population
+    :: (Num a, Ord a, Random a, MonadIO m)
+    => FitnessF a -> Population -> m Population
+reproduction fitness population =
+    liftIO $
+    do let probabilities = map fitness population
+       let minProb = minimum probabilities
+       let nonNegativeProbs =
+               map
+                   (\p ->
+                         p - minProb)
+                   probabilities
+       sequence $
+           replicate (length population) $
+           frequency $ zip nonNegativeProbs population
 
-crossingover :: Double -> IndividualLength -> Population -> IO Population
-crossingover prob len population = do
-    pairs <- randomPairs $ length population
-    individualPairs <- mapM f pairs
-    return $ flattenPairs individualPairs
+crossingover :: MonadIO m => Double -> IndividualLength -> Population -> m Population
+crossingover prob len population =
+    liftIO $
+    do pairs <- randomPairs $ length population
+       individualPairs <- mapM f pairs
+       return $ flattenPairs individualPairs
   where
     f (idx0,idx1) = do
         let (i0,i1) = (population !! idx0, population !! idx1)
@@ -125,8 +189,8 @@ leftBits k i = (i `shiftR` k) `shiftL` k
 rightBits :: Bits a => Int -> a -> a
 rightBits k i = i .&. (foldr (.|.) zeroBits $ map bit [0 .. k - 1])
 
-mutation :: Double -> IndividualLength -> Population -> IO Population
-mutation p len = mapM (doMutation p len)
+mutation :: MonadIO m => Double -> IndividualLength -> Population -> m Population
+mutation p len = liftIO . mapM (doMutation p len)
 
 doMutation :: Double -> IndividualLength -> Individual -> IO Individual
 doMutation p len i = do
