@@ -1,3 +1,5 @@
+import           System.TimeIt         (timeItT)
+
 import           Evolutionary.Chart    (drawToFiles)
 import           Evolutionary.Extremum (argMin)
 import           Evolutionary.Genetic  (GeneticAlgorithmParams (..),
@@ -28,6 +30,15 @@ stopCriterion cnt _ _ = cnt >= 24
 
 main :: IO ()
 main = do
-    (res,populations) <- argMin precision gap stopCriterion (minV, maxV) f
-    print res
+    putStrLn "Running algorithm…"
+    (secs,(res,populations)) <-
+        timeItT $ argMin precision gap stopCriterion (minV, maxV) f
+    putStrLn $
+        mconcat
+            [ "Result is "
+            , show res
+            , ". Generations: "
+            , show $ length populations]
+    putStrLn $ mconcat ["Algorithm took ", show secs, " seconds"]
+    putStrLn "Drawing charts…"
     drawToFiles "tmp" 3 (minV, maxV) f populations
