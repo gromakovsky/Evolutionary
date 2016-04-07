@@ -32,6 +32,7 @@ library
 executable evolutionary-lab1
   main-is:             Main.hs
   build-depends:       base >= 4.8
+                     , directory
                      , evolutionary
                      , timeit
   hs-source-dirs:      src/lab1

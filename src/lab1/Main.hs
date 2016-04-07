@@ -1,3 +1,6 @@
+import           Control.Monad         (when)
+import           System.Directory      (createDirectory, doesDirectoryExist,
+                                        removeDirectoryRecursive)
 import           System.TimeIt         (timeItT)
 
 import           Evolutionary.Chart    (drawToFiles)
@@ -8,11 +11,8 @@ import           Evolutionary.Genetic  (GeneticAlgorithmParams (..),
 f :: Floating a => a -> a
 f x = cos (2 * x) / (x * x)
 
-minV :: Double
-minV = -20
-
-maxV :: Double
-maxV = -2.3
+range :: (Double, Double)
+range = (-20, -2.3)
 
 gap :: GeneticAlgorithmParams
 gap =
@@ -28,11 +28,14 @@ precision = 0.001
 stopCriterion :: IterationsCount -> Double -> Double -> Bool
 stopCriterion cnt _ _ = cnt >= 24
 
+directoryPath :: FilePath
+directoryPath = "lab1-charts"
+
 main :: IO ()
 main = do
     putStrLn "Running algorithm…"
     (secs,(res,populations)) <-
-        timeItT $ argMin precision gap stopCriterion (minV, maxV) f
+        timeItT $ argMin precision gap stopCriterion range f
     putStrLn $
         mconcat
             [ "Result is "
@@ -40,5 +43,8 @@ main = do
             , ". Generations: "
             , show $ length populations]
     putStrLn $ mconcat ["Algorithm took ", show secs, " seconds"]
+    exists <- doesDirectoryExist directoryPath
+    when exists $ removeDirectoryRecursive directoryPath
+    createDirectory directoryPath
     putStrLn "Drawing charts…"
-    drawToFiles "tmp" 3 (minV, maxV) f populations
+    drawToFiles directoryPath 3 range f populations
