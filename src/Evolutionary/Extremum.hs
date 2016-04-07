@@ -11,7 +11,7 @@ import           Numeric.Natural      (Natural)
 
 import           Evolutionary.Genetic (GeneticAlgorithmParams, Individual (..),
                                        IndividualLength, StopCriterion,
-                                       genericGA)
+                                       simpleGA)
 
 type Range a = (a, a)
 
@@ -35,7 +35,7 @@ argMax
     -> (Double -> Double)
     -> IO (Double, [[Double]])
 argMax precision gap stopCriterion r f = do
-    convert <$> genericGA gap len (f . fromIndividual') stopCriterion
+    convert <$> simpleGA gap len (f . fromIndividual') stopCriterion
   where
     len = individualLength r precision
     fromIndividual' = fromIndividual r len

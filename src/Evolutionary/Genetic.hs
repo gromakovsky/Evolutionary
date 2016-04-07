@@ -12,7 +12,7 @@ module Evolutionary.Genetic
        , FitnessF
        , StopCriterion
        , GeneticAlgorithmParams (..)
-       , genericGA
+       , simpleGA
        ) where
 
 import           Control.Lens            (makeLenses, use, view, (+=), (.=))
@@ -76,14 +76,14 @@ $(makeLenses ''GAState)
 type GAMonad a = RWST (GAInput a) GALog GAState IO
 
 -- | Simple genetic algorithm in generic form.
-genericGA
+simpleGA
     :: (Num a, Ord a, Random a)
     => GeneticAlgorithmParams
     -> IndividualLength
     -> FitnessF a
     -> StopCriterion a
     -> IO (Individual, [Population])
-genericGA _gaiParams@GeneticAlgorithmParams{..} _gaiIndividualLength _gaiFitness _gaiStopCriterion = do
+simpleGA _gaiParams@GeneticAlgorithmParams{..} _gaiIndividualLength _gaiFitness _gaiStopCriterion = do
     _gasLastPopulation <- genPopulation gapPopulationSize _gaiIndividualLength
     let inp =
             GAInput
@@ -94,13 +94,13 @@ genericGA _gaiParams@GeneticAlgorithmParams{..} _gaiIndividualLength _gaiFitness
             { _gasIterationsCount = 0
             , ..
             }
-    (individual, _, output) <- runRWST genericGADo inp st
+    (individual, _, output) <- runRWST simpleGADo inp st
     return $ (individual, output)
 
-genericGADo :: (Num a, Ord a, Random a) => GAMonad a Individual
-genericGADo = do
+simpleGADo :: (Num a, Ord a, Random a) => GAMonad a Individual
+simpleGADo = do
     lastPopulation <- use gasLastPopulation
-    res <- genericGAStep
+    res <- simpleGAStep
     newPopulation <- use gasLastPopulation
     fitness <- view gaiFitness
     criterion <- view gaiStopCriterion
@@ -108,12 +108,12 @@ genericGADo = do
     let f = fitness . findBest fitness
     if (criterion cnt (f lastPopulation) (f newPopulation))
         then return res
-        else genericGADo
+        else simpleGADo
 
-genericGAStep
+simpleGAStep
     :: (Num a, Ord a, Random a)
     => GAMonad a Individual
-genericGAStep = do
+simpleGAStep = do
     GeneticAlgorithmParams{..} <- view gaiParams
     len <- view gaiIndividualLength
     fitness <- view gaiFitness
