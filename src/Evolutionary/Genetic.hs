@@ -20,8 +20,8 @@ import           Control.Monad.IO.Class  (MonadIO (liftIO))
 import           Control.Monad.RWS       (RWST (runRWST))
 import           Control.Monad.Writer    (tell)
 import           Data.Bits               (Bits (shiftL, setBit, zeroBits, (.|.), (.&.), bit, shiftR, complementBit))
-import           Data.List               (genericLength, genericReplicate,
-                                          maximumBy)
+import           Data.List               (genericDrop, genericLength,
+                                          genericReplicate, maximumBy, sortOn)
 import           Data.Ord                (comparing)
 import           Numeric.Natural         (Natural)
 import           System.Random           (Random (randomRIO))
@@ -121,7 +121,8 @@ simpleGAStep = do
     reproduced <- reproduction fitness lastPopulation
     crossingovered <- crossingover gapCrossingoverProbability len reproduced
     mutated <- mutation gapMutationProbability len crossingovered
-    newPopulation <- return $ reduction gapPopulationSize mutated
+    let newPopulation =
+            reduction fitness gapPopulationSize (mutated ++ lastPopulation)
     tell [newPopulation]
     gasLastPopulation .= newPopulation
     gasIterationsCount += 1
@@ -201,7 +202,8 @@ doMutation p len i = do
   where
     changeRandomBit = complementBit i <$> randomRIO (0, (fromIntegral len) - 1)
 
-reduction :: PopulationSize -> Population -> Population
-reduction sz p
-  | genericLength p > sz = reduction sz $ tail p
+reduction :: (Ord a) => FitnessF a -> PopulationSize -> Population -> Population
+reduction fitness sz p
+  | genericLength p > sz =
+      genericDrop (genericLength p - sz) $ sortOn fitness p
   | otherwise = p
