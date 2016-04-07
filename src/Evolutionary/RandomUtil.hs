@@ -35,11 +35,18 @@ frequency xs0 = do
 randomPairs :: Int -> IO [(Int, Int)]
 randomPairs v = randomPairsDo [0 .. v - 1] []
 
--- TODO
 randomPairsDo :: [Int] -> [(Int, Int)] -> IO [(Int, Int)]
 randomPairsDo [] res = return res
 randomPairsDo [x] res = return $ (x, x) : res
-randomPairsDo (x:y:xs) res =
-    (\v ->
-          (x, y) : (v ++ res)) <$>
-    randomPairsDo xs res
+randomPairsDo xs res = do
+    i1 <- randomRIO (0, length xs - 1)
+    let v1 = xs !! i1
+    let xs' = dropIndex i1 xs
+    i2 <- randomRIO (0, length xs' - 1)
+    let v2 = xs' !! i2
+    let xs'' = dropIndex i2 xs'
+    randomPairsDo xs'' ((v1, v2) : res)
+  where
+    dropIndex i l =
+        let (a,b) = splitAt i l
+        in a ++ tail b
