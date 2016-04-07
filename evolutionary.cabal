@@ -9,10 +9,14 @@ build-type:            Simple
 cabal-version:         >=1.18
 
 library
-  exposed-modules:     Evolutionary.Genetic
+  exposed-modules:     Evolutionary.Chart
+                       Evolutionary.Genetic
                        Evolutionary.Extremum
   other-modules:       Evolutionary.RandomUtil
   build-depends:       base >= 4.8
+                     , Chart
+                     , Chart-cairo
+                     , filepath
                      , lens
                      , mtl
                      , random
