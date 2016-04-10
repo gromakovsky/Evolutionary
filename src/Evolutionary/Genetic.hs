@@ -1,13 +1,11 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell     #-}
+{-# LANGUAGE TypeFamilies        #-}
 
 -- | Simple genetic algorithm.
 
 module Evolutionary.Genetic
-       ( Individual (..)
-       , Population
-       , IndividualLength
-       , IterationsCount
+       ( IterationsCount
        , PopulationSize
        , FitnessF
        , StopCriterion
@@ -20,34 +18,24 @@ import           Control.Lens            (makeLenses, use, view, (%=), (+=),
 import           Control.Monad.IO.Class  (MonadIO (liftIO))
 import           Control.Monad.RWS       (RWST (runRWST))
 import           Control.Monad.Writer    (tell)
-import           Data.Bits               (Bits (shiftL, setBit, zeroBits, (.|.), (.&.), bit, shiftR, complementBit))
-import           Data.List               (genericDrop, genericLength,
-                                          genericReplicate, maximumBy, sortOn)
+import           Data.List               (genericDrop, genericLength, maximumBy,
+                                          sortOn)
 import           Data.Ord                (comparing)
-import           Numeric.Natural         (Natural)
-import           System.Random           (Random (randomRIO))
+import           System.Random           (Random)
 
+import           Evolutionary.Individual (Individual (GenerationParams, cross, mutate),
+                                          Population, PopulationSize,
+                                          randomPopulation)
 import           Evolutionary.RandomUtil (frequency, randomBool, randomPairs)
 
--- | Individual is a sequence of bits represented as Integer.
-newtype Individual = Individual
-    { getIndividual :: Natural
-    } deriving (Show, Eq, Bits)
-
--- | Population is a list of individuals.
-type Population = [Individual]
-
--- | Some trivial type aliases to make other types more clear.
-type IndividualLength = Word
 type IterationsCount = Word
-type PopulationSize = Word
 
-type FitnessF a = Individual -> a
+type FitnessF i a = i -> a
 
 -- | StopCriterion is a function which takes number of executed
 -- iterations, best individuals from previous iterations and returns
 -- True iff execution should stop.
-type StopCriterion = IterationsCount -> [Individual] -> Bool
+type StopCriterion i = IterationsCount -> [i] -> Bool
 
 -- | Parameters for simple genetic algorithm.
 data GeneticAlgorithmParams = GeneticAlgorithmParams
@@ -56,37 +44,37 @@ data GeneticAlgorithmParams = GeneticAlgorithmParams
     , gapMutationProbability     :: Double
     } deriving (Show)
 
-data GAInput a = GAInput
-    { _gaiParams           :: GeneticAlgorithmParams
-    , _gaiIndividualLength :: IndividualLength
-    , _gaiFitness          :: FitnessF a
-    , _gaiStopCriterion    :: StopCriterion
+data GAInput i a = GAInput
+    { _gaiParams        :: GeneticAlgorithmParams
+    , _gaiFitness       :: FitnessF i a
+    , _gaiStopCriterion :: StopCriterion i
     }
 
 $(makeLenses ''GAInput)
 
-type GALog = [Population]
+type GALog i = [Population i]
 
-data GAState = GAState
-    { _gasLastPopulation  :: Population
-    , _gasBestIndividuals :: [Individual]
+data GAState i = GAState
+    { _gasLastPopulation  :: Population i
+    , _gasBestIndividuals :: [i]
     , _gasIterationsCount :: IterationsCount
     }
 
 $(makeLenses ''GAState)
 
-type GAMonad a = RWST (GAInput a) GALog GAState IO
+type GAMonad i a = RWST (GAInput i a) (GALog i) (GAState i) IO
 
 -- | Simple genetic algorithm in generic form.
 simpleGA
-    :: (Num a, Ord a, Random a)
+    :: (Individual i, Num a, Ord a, Random a)
     => GeneticAlgorithmParams
-    -> IndividualLength
-    -> FitnessF a
-    -> StopCriterion
-    -> IO (Individual, [Population])
-simpleGA _gaiParams@GeneticAlgorithmParams{..} _gaiIndividualLength _gaiFitness _gaiStopCriterion = do
-    _gasLastPopulation <- genPopulation gapPopulationSize _gaiIndividualLength
+    -> GenerationParams i
+    -> FitnessF i a
+    -> StopCriterion i
+    -> IO (i, [Population i])
+simpleGA _gaiParams@GeneticAlgorithmParams{..} genParams _gaiFitness _gaiStopCriterion = do
+    _gasLastPopulation <-
+        randomPopulation gapPopulationSize genParams
     let inp =
             GAInput
             { ..
@@ -97,15 +85,12 @@ simpleGA _gaiParams@GeneticAlgorithmParams{..} _gaiIndividualLength _gaiFitness 
             , _gasBestIndividuals = [findBest _gaiFitness _gasLastPopulation]
             , ..
             }
-    (individual, _, output) <- runRWST simpleGADo inp st
+    (individual,_,output) <- runRWST simpleGADo inp st
     return $ (individual, output)
 
-simpleGADo :: (Num a, Ord a, Random a) => GAMonad a Individual
+simpleGADo :: (Individual i, Num a, Ord a, Random a) => GAMonad i a i
 simpleGADo = do
-    lastPopulation <- use gasLastPopulation
     res <- simpleGAStep
-    newPopulation <- use gasLastPopulation
-    fitness <- view gaiFitness
     criterion <- view gaiStopCriterion
     cnt <- use gasIterationsCount
     bestIndividuals <- use gasBestIndividuals
@@ -114,16 +99,15 @@ simpleGADo = do
         else simpleGADo
 
 simpleGAStep
-    :: (Num a, Ord a, Random a)
-    => GAMonad a Individual
+    :: (Individual i, Num a, Ord a, Random a)
+    => GAMonad i a i
 simpleGAStep = do
     GeneticAlgorithmParams{..} <- view gaiParams
-    len <- view gaiIndividualLength
     fitness <- view gaiFitness
     lastPopulation <- use gasLastPopulation
     reproduced <- reproduction fitness lastPopulation
-    crossingovered <- crossingover gapCrossingoverProbability len reproduced
-    mutated <- mutation gapMutationProbability len crossingovered
+    crossingovered <- crossingover gapCrossingoverProbability reproduced
+    mutated <- mutation gapMutationProbability crossingovered
     let newPopulation =
             reduction fitness gapPopulationSize (mutated ++ lastPopulation)
     tell [newPopulation]
@@ -133,81 +117,48 @@ simpleGAStep = do
     gasBestIndividuals %= (res:)
     return res
 
-findBest :: Ord a => FitnessF a -> Population -> Individual
+findBest :: Ord a => FitnessF i a -> Population i -> i
 findBest fitness population = maximumBy (comparing fitness) population
-
-genIndividual :: Word -> IO Individual
-genIndividual len = do
-    bits <- sequence $ genericReplicate len (randomBool 0.5)
-    return $ foldr step zeroBits bits
-  where
-    step False = (`shiftL` 1)
-    step True = (`setBit` 0) . (`shiftL` 1)
-
-genPopulation :: PopulationSize -> IndividualLength -> IO Population
-genPopulation sz len = sequence $ genericReplicate sz (genIndividual len)
 
 reproduction
     :: (Num a, Ord a, Random a, MonadIO m)
-    => FitnessF a -> Population -> m Population
+    => FitnessF i a -> Population i -> m (Population i)
 reproduction fitness population =
-    liftIO $
-    do let probabilities = map fitness population
-       let minProb = minimum probabilities
-       let nonNegativeProbs =
-               map
-                   (\p ->
-                         p - minProb)
-                   probabilities
-       sequence $
-           replicate (length population) $
-           frequency $ zip nonNegativeProbs population
+    liftIO . sequence . replicate (length population) . frequency $
+    zip nonNegativeProbs population
+  where
+    probabilities = map fitness population
+    minProb = minimum probabilities
+    nonNegativeProbs =
+        map (\p -> p - minProb) probabilities
 
-crossingover :: MonadIO m => Double -> IndividualLength -> Population -> m Population
-crossingover prob len population =
+crossingover
+    :: (Individual i, MonadIO m)
+    => Double -> Population i -> m (Population i)
+crossingover prob population =
     liftIO $
     do pairs <- randomPairs $ length population
        individualPairs <- mapM f pairs
-       return $ flattenPairs individualPairs
+       return $ concat individualPairs
   where
-    f (idx0,idx1) = do
+    f (idx0, idx1) = do
         let (i0,i1) = (population !! idx0, population !! idx1)
         v <- randomBool prob
-        k <- randomRIO (0, len - 1)
         if v
-            then return $ cross k i0 i1
-            else return $ (i0, i1)
-    flattenPairs [] = []
-    flattenPairs ((x,y):xs) = x : y : flattenPairs xs
+            then cross i0 i1
+            else return [i0, i1]
 
-cross :: Word -> Individual -> Individual -> (Individual, Individual)
-cross k i0 i1 = (p00 .|. p11, p10 .|. p01)
-  where
-    k' = fromIntegral k
-    p00 = leftBits k' i0
-    p01 = rightBits k' i0
-    p10 = leftBits k' i1
-    p11 = rightBits k' i1
+mutation :: (Individual i, MonadIO m) => Double -> Population i -> m (Population i)
+mutation p = liftIO . mapM (doMutation p)
 
-leftBits :: Bits a => Int -> a -> a
-leftBits k i = (i `shiftR` k) `shiftL` k
-
-rightBits :: Bits a => Int -> a -> a
-rightBits k i = i .&. (foldr (.|.) zeroBits $ map bit [0 .. k - 1])
-
-mutation :: MonadIO m => Double -> IndividualLength -> Population -> m Population
-mutation p len = liftIO . mapM (doMutation p len)
-
-doMutation :: Double -> IndividualLength -> Individual -> IO Individual
-doMutation p len i = do
+doMutation :: Individual i => Double -> i -> IO i
+doMutation p i = do
     v <- randomBool p
     if v
-        then changeRandomBit
+        then mutate i
         else return i
-  where
-    changeRandomBit = complementBit i <$> randomRIO (0, (fromIntegral len) - 1)
 
-reduction :: (Ord a) => FitnessF a -> PopulationSize -> Population -> Population
+reduction :: (Ord a) => FitnessF i a -> PopulationSize -> Population i -> Population i
 reduction fitness sz p
   | genericLength p > sz =
       genericDrop (genericLength p - sz) $ sortOn fitness p

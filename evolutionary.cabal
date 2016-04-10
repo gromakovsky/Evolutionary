@@ -12,7 +12,9 @@ library
   exposed-modules:     Evolutionary.Chart
                        Evolutionary.Genetic
                        Evolutionary.Extremum
-  other-modules:       Evolutionary.RandomUtil
+  other-modules:       Evolutionary.BinaryIndividual
+                       Evolutionary.Individual
+                       Evolutionary.RandomUtil
   build-depends:       base >= 4.8
                      , Chart
                      , Chart-cairo

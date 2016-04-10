@@ -5,16 +5,16 @@ module Evolutionary.Extremum
        , Precision
        , StopCriterion
        , argMax
-       , fromIndividual
        , argMin
        ) where
 
-import           Data.Bits            (shiftL)
-import           Numeric.Natural      (Natural)
+import           Data.Bits                     (shiftL)
+import           Numeric.Natural               (Natural)
 
-import           Evolutionary.Genetic (GeneticAlgorithmParams, Individual (..),
-                                       IndividualLength, IterationsCount,
-                                       simpleGA)
+import           Evolutionary.BinaryIndividual (BinaryIndividual (..),
+                                                IndividualLength)
+import           Evolutionary.Genetic          (GeneticAlgorithmParams,
+                                                IterationsCount, simpleGA)
 
 type Range a = (a, a)
 
@@ -22,15 +22,15 @@ type Precision = Double
 
 type StopCriterion = IterationsCount -> [Double] -> Bool
 
-fromIndividual :: Range Double -> IndividualLength -> Individual -> Double
-fromIndividual (lo, hi) len (Individual v) = lo + t * (hi - lo)
+fromBinary :: Range Double -> BinaryIndividual -> Double
+fromBinary (lo, hi) (BinaryIndividual v len) = lo + t * (hi - lo)
   where
     t =
         fromIntegral v /
         (fromIntegral $ (1 `shiftL` (fromIntegral len) :: Natural) - 1)
 
-individualLength :: Range Double -> Precision -> IndividualLength
-individualLength (lo, hi) prec = ceiling $ logBase 2 $ (hi - lo) / prec
+binaryIndividualLength :: Range Double -> Precision -> IndividualLength
+binaryIndividualLength (lo, hi) prec = ceiling $ logBase 2 $ (hi - lo) / prec
 
 argMax
     :: Double
@@ -40,13 +40,13 @@ argMax
     -> (Double -> Double)
     -> IO (Double, [[Double]])
 argMax precision gap stopCriterion r f = do
-    convert <$> simpleGA gap len (f . fromIndividual') stopCriterion'
+    convert <$> simpleGA gap len (f . fromBinary') stopCriterion'
   where
-    len = individualLength r precision
-    fromIndividual' = fromIndividual r len
+    len = binaryIndividualLength r precision
+    fromBinary' = fromBinary r
     convert (ind, populations) =
-        (fromIndividual' ind, map (map fromIndividual') populations)
-    stopCriterion' c = stopCriterion c . map (fromIndividual r len)
+        (fromBinary' ind, map (map fromBinary') populations)
+    stopCriterion' c = stopCriterion c . map fromBinary'
 
 argMin
     :: Double
