@@ -2,7 +2,8 @@
 -- evolutionary computations algorithms.
 
 module Evolutionary.Chart
-       ( drawToFiles
+       ( drawPopulations
+       , drawStatistics
        ) where
 
 import           Control.Lens                           ((.=))
@@ -12,20 +13,20 @@ import           Graphics.Rendering.Chart.Backend.Cairo (toFile)
 import qualified Graphics.Rendering.Chart.Easy          as CE
 import           System.FilePath                        ((<.>), (</>))
 
-drawToFiles
+drawPopulations
     :: (Num x, Enum x, Fractional x, CE.PlotValue x, CE.PlotValue y)
     => FilePath -> Word -> (x, x) -> (x -> y) -> [[x]] -> IO ()
-drawToFiles dir interval range f populations =
-    mapM_ (drawToFilesDo dir range f) $
+drawPopulations dir interval range f populations =
+    mapM_ (drawPopulationsDo dir range f) $
     map
         (\i ->
               (i + 1, populations `genericIndex` i))
         [0, interval .. genericLength populations - 1]
 
-drawToFilesDo
+drawPopulationsDo
     :: (Num x, Enum x, Fractional x, CE.PlotValue x, CE.PlotValue y)
     => FilePath -> (x, x) -> (x -> y) -> (Word, [x]) -> IO ()
-drawToFilesDo dir (lo,hi) f (i, population) = toFile CE.def fileName $ do
+drawPopulationsDo dir (lo,hi) f (i, population) = toFile CE.def fileName $ do
     CE.layout_title .= ("Population #" ++ show i)
     CE.plot $ CE.line "f" [mapToPair [lo, (lo + delta) .. hi]]
     CE.plot $ CE.points "population" $ mapToPair population
@@ -37,3 +38,19 @@ drawToFilesDo dir (lo,hi) f (i, population) = toFile CE.def fileName $ do
 padLeft :: x -> Word -> [x] -> [x]
 padLeft x n xs | genericLength xs >= n = xs
                | otherwise = padLeft x n (x:xs)
+
+drawStatistics
+    :: (Real x, Real y)
+    => FilePath -> String -> String -> [x] -> (x -> IO y) -> IO ()
+drawStatistics dir argName statName args f = do
+    stats <- mapM (fmap toDouble . f) args
+    toFile CE.def fileName $
+        do CE.layout_title .= fullName
+           CE.plot $ CE.points statName $ zip (map toDouble args) stats
+  where
+    toDouble
+        :: Real x
+        => x -> Double
+    toDouble = fromRational . toRational
+    fullName = mconcat [statName, " (", argName, ")"]
+    fileName = dir </> fullName <.> "png"
