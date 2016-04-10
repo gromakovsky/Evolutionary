@@ -15,7 +15,8 @@ module Evolutionary.Genetic
        , simpleGA
        ) where
 
-import           Control.Lens            (makeLenses, use, view, (+=), (.=))
+import           Control.Lens            (makeLenses, use, view, (%=), (+=),
+                                          (.=))
 import           Control.Monad.IO.Class  (MonadIO (liftIO))
 import           Control.Monad.RWS       (RWST (runRWST))
 import           Control.Monad.Writer    (tell)
@@ -44,9 +45,9 @@ type PopulationSize = Word
 type FitnessF a = Individual -> a
 
 -- | StopCriterion is a function which takes number of executed
--- iterations, value on previous iteration, value on last iterations
--- and returns True iff execution should stop.
-type StopCriterion a = IterationsCount -> a -> a -> Bool
+-- iterations, best individuals from previous iterations and returns
+-- True iff execution should stop.
+type StopCriterion = IterationsCount -> [Individual] -> Bool
 
 -- | Parameters for simple genetic algorithm.
 data GeneticAlgorithmParams = GeneticAlgorithmParams
@@ -59,7 +60,7 @@ data GAInput a = GAInput
     { _gaiParams           :: GeneticAlgorithmParams
     , _gaiIndividualLength :: IndividualLength
     , _gaiFitness          :: FitnessF a
-    , _gaiStopCriterion    :: StopCriterion a
+    , _gaiStopCriterion    :: StopCriterion
     }
 
 $(makeLenses ''GAInput)
@@ -68,6 +69,7 @@ type GALog = [Population]
 
 data GAState = GAState
     { _gasLastPopulation  :: Population
+    , _gasBestIndividuals :: [Individual]
     , _gasIterationsCount :: IterationsCount
     }
 
@@ -81,7 +83,7 @@ simpleGA
     => GeneticAlgorithmParams
     -> IndividualLength
     -> FitnessF a
-    -> StopCriterion a
+    -> StopCriterion
     -> IO (Individual, [Population])
 simpleGA _gaiParams@GeneticAlgorithmParams{..} _gaiIndividualLength _gaiFitness _gaiStopCriterion = do
     _gasLastPopulation <- genPopulation gapPopulationSize _gaiIndividualLength
@@ -92,6 +94,7 @@ simpleGA _gaiParams@GeneticAlgorithmParams{..} _gaiIndividualLength _gaiFitness 
     let st =
             GAState
             { _gasIterationsCount = 0
+            , _gasBestIndividuals = [findBest _gaiFitness _gasLastPopulation]
             , ..
             }
     (individual, _, output) <- runRWST simpleGADo inp st
@@ -105,8 +108,8 @@ simpleGADo = do
     fitness <- view gaiFitness
     criterion <- view gaiStopCriterion
     cnt <- use gasIterationsCount
-    let f = fitness . findBest fitness
-    if (criterion cnt (f lastPopulation) (f newPopulation))
+    bestIndividuals <- use gasBestIndividuals
+    if criterion cnt bestIndividuals
         then return res
         else simpleGADo
 
@@ -126,7 +129,9 @@ simpleGAStep = do
     tell [newPopulation]
     gasLastPopulation .= newPopulation
     gasIterationsCount += 1
-    return $ findBest fitness newPopulation
+    let res = findBest fitness newPopulation
+    gasBestIndividuals %= (res:)
+    return res
 
 findBest :: Ord a => FitnessF a -> Population -> Individual
 findBest fitness population = maximumBy (comparing fitness) population

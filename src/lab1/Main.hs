@@ -9,24 +9,28 @@ import           System.Directory      (createDirectory, doesDirectoryExist,
 import           System.TimeIt         (timeItT)
 
 import           Evolutionary.Chart    (drawPopulations, drawStatistics)
-import           Evolutionary.Extremum (argMin)
+import           Evolutionary.Extremum (Precision, Range, argMin)
 import           Evolutionary.Genetic  (GeneticAlgorithmParams (..),
                                         IterationsCount, PopulationSize)
 
 f :: Floating a => a -> a
 f x = cos (2 * x) / (x * x)
 
-range :: (Double, Double)
+range :: Range Double
 range = (-20, -2.3)
 
-precision :: Double
+precision :: Precision
 precision = 0.001
 
 actualArgMin :: Double
 actualArgMin = -4.6054818
 
-stopCriterion :: IterationsCount -> Double -> Double -> Bool
-stopCriterion cnt _ _ = cnt >= 24
+stopCriterion :: IterationsCount -> [Double] -> Bool
+stopCriterion cnt prevValues = cnt >= 50 || checkValues
+  where
+    checkValues =
+        length prevValues > 5 &&
+        all (== head prevValues) (take 5 $ tail prevValues)
 
 directoryPath :: FilePath
 directoryPath = "lab1-charts"
