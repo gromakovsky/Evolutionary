@@ -20,7 +20,7 @@ range :: Range Double
 range = (-20, -2.3)
 
 precision :: Precision
-precision = 0.001
+precision = 0.00001
 
 actualArgMin :: Double
 actualArgMin = -4.6054818
@@ -28,9 +28,10 @@ actualArgMin = -4.6054818
 stopCriterion :: IterationsCount -> [Double] -> Bool
 stopCriterion cnt prevValues = cnt >= 50 || checkValues
   where
+    firstSame = 5
     checkValues =
-        length prevValues > 5 &&
-        all (== head prevValues) (take 5 $ tail prevValues)
+        length prevValues >= firstSame &&
+        all (== head prevValues) (take firstSame prevValues)
 
 directoryPath :: FilePath
 directoryPath = "lab1-charts"
@@ -38,9 +39,9 @@ directoryPath = "lab1-charts"
 defaultGap :: GeneticAlgorithmParams
 defaultGap =
     GeneticAlgorithmParams
-    { gapPopulationSize = 100
+    { gapPopulationSize = 50
     , gapCrossingoverProbability = 0.6
-    , gapMutationProbability = 1.0e-3
+    , gapMutationProbability = 5.0e-3
     }
 
 populationSizes :: [PopulationSize]
@@ -99,7 +100,7 @@ main = do
     when exists $ removeDirectoryRecursive directoryPath
     createDirectory directoryPath
     putStrLn "Drawing charts…"
-    drawPopulations directoryPath 3 range f populations
+    drawPopulations directoryPath 1 range f populations
     putStrLn "Charts are ready"
     putStrLn "Measuring statistics…"
     measureStatistics
