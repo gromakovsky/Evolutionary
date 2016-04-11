@@ -3,12 +3,17 @@
 
 module Evolutionary.Chart
        ( drawPopulations
+       , drawPopulations3D
        , drawStatistics
        ) where
 
 import           Control.Lens                           ((.=))
 import           Data.List                              (genericIndex,
                                                          genericLength)
+import           Graphics.EasyPlot                      (Color (..), Graph3D (Function3D, Data3D),
+                                                         Option (Color, Title), Option3D (RangeX, RangeY),
+                                                         TerminalType (PNG),
+                                                         plot)
 import           Graphics.Rendering.Chart.Backend.Cairo (toFile)
 import qualified Graphics.Rendering.Chart.Easy          as CE
 import           System.FilePath                        ((<.>), (</>))
@@ -34,6 +39,36 @@ drawPopulationsDo dir (lo,hi) f (i, population) = toFile CE.def fileName $ do
     fileName = dir </> (padLeft '0' 3 $ show i) <.> "png"
     delta = (hi - lo) / 1000
     mapToPair = map (\x -> (x, f x))
+
+drawPopulations3D
+    :: FilePath
+    -> Word
+    -> (Double, Double)
+    -> (Double, Double)
+    -> (Double -> Double -> Double)
+    -> [[(Double, Double)]]
+    -> IO ()
+drawPopulations3D dir interval xRange yRange f populations =
+    mapM_ (drawPopulations3DDo dir xRange yRange f) $
+    map
+        (\i ->
+              (i + 1, populations `genericIndex` i))
+        [0,interval .. genericLength populations - 1]
+
+drawPopulations3DDo
+    :: FilePath
+    -> (Double, Double)
+    -> (Double, Double)
+    -> (Double -> Double -> Double)
+    -> (Word, [(Double, Double)])
+    -> IO Bool
+drawPopulations3DDo dir (xLo,xHi) (yLo,yHi) f (i,population) =
+    plot (PNG fileName) [functionGraph, pointsGraph]
+  where
+    fileName = dir </> (padLeft '0' 3 $ show i) <.> "png"
+    functionGraph = Function3D [Color Green, Title "f"] [RangeX xLo xHi, RangeY yLo yHi] f
+    pointsGraph = Data3D [Color Red, Title "Population"] [] pts
+    pts = map (\(x, y) -> (x, y, f x y)) population
 
 padLeft :: x -> Word -> [x] -> [x]
 padLeft x n xs | genericLength xs >= n = xs

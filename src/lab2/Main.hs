@@ -9,7 +9,8 @@ import           System.Directory              (createDirectory,
                                                 removeDirectoryRecursive)
 import           System.TimeIt                 (timeItT)
 
-import           Evolutionary.Chart            (drawPopulations, drawStatistics)
+import           Evolutionary.Chart            (drawPopulations3D,
+                                                drawStatistics)
 import           Evolutionary.Defaults         (crossingoverProbabilities,
                                                 defaultGap,
                                                 mutationProbabilities,
@@ -82,11 +83,15 @@ average cnt action = do
     return ((fromRational . toRational $ sum results) / fromIntegral cnt)
 
 main :: IO ()
-main = do
+main = main2D
+
+main2D :: IO ()
+main2D = do
+    putStrLn "2D mode"
     putStrLn "Running algorithm…"
     putStrLn "Parameters:"
     print defaultGap
-    (secs, res, populations) <- argMinFull2D defaultGap
+    (secs,res,populations) <- argMinFull2D defaultGap
     putStrLn $
         mconcat
             [ "Result is "
@@ -97,8 +102,14 @@ main = do
     exists <- doesDirectoryExist directoryPath
     when exists $ removeDirectoryRecursive directoryPath
     createDirectory directoryPath
-    -- putStrLn "Drawing charts…"
-    -- drawPopulations directoryPath 1 range f populations
+    putStrLn "Drawing charts…"
+    drawPopulations3D
+        directoryPath
+        1
+        range
+        range
+        (curry $ f2D . Point2D)
+        (map (map getPoint2D) populations)
     putStrLn "Charts are ready"
     putStrLn "Measuring statistics…"
     measureStatistics
