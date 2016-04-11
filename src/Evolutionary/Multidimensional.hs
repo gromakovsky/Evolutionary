@@ -33,8 +33,9 @@ data RealIndividual a = RealIndividual
     , riRanges :: [Range a]
     } deriving (Show)
 
-instance (Random a) => Individual (RealIndividual a) where
+instance (Random a, Fractional a) => Individual (RealIndividual a) where
     type GenerationParams (RealIndividual a) = [Range a]
+
     randomIndividual :: [Range a] -> IO (RealIndividual a)
     randomIndividual riRanges = do
         riValues <- mapM randomRIO riRanges
@@ -44,7 +45,12 @@ instance (Random a) => Individual (RealIndividual a) where
             }
 
     cross :: RealIndividual a -> RealIndividual a -> IO [RealIndividual a]
-    cross i1 i2 = return [i1, i2]
+    cross (RealIndividual v1 rngs) (RealIndividual v2 _) =
+        return [RealIndividual v1' rngs, RealIndividual v2' rngs]
+      where
+        w = 0.6
+        v1' = zipWith (+) (map (* w) v1) (map (* (1 - w)) v2)
+        v2' = zipWith (+) (map (* w) v2) (map (* (1 - w)) v1)
 
     mutate :: RealIndividual a -> IO (RealIndividual a)
     mutate i@RealIndividual{..} = do
