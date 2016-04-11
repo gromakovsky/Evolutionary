@@ -18,7 +18,11 @@ import           Evolutionary.Defaults         (crossingoverProbabilities,
 import           Evolutionary.Genetic          (GeneticAlgorithmParams (..),
                                                 IterationsCount)
 import           Evolutionary.Multidimensional (Point2D (..), Point3D (..),
-                                                Range, argMin, metric2D)
+                                                Range, argMin, metric2D,
+                                                metric3D)
+
+mode2D :: Bool
+mode2D = False
 
 f2D :: Floating a => Point2D a -> a
 f2D (Point2D (x, y)) = 100 * (y - x * x) ** 2 + (1 - x) ** 2
@@ -60,20 +64,32 @@ argMinFull3D gap = do
         timeItT $ argMin gap stopCriterion r3D f3D
     return (secs, res, populations)
 
-argMinSeconds2D :: GeneticAlgorithmParams -> IO Double
-argMinSeconds2D = fmap sel1 . argMinFull2D
+argMinSeconds :: GeneticAlgorithmParams -> IO Double
+argMinSeconds
+  | mode2D = fmap sel1 . argMinFull2D
+  | otherwise = fmap sel1 . argMinFull3D
 
 argMinRes2D :: GeneticAlgorithmParams -> IO (Point2D Double)
 argMinRes2D = fmap sel2 . argMinFull2D
 
-argMinAccuracy2D :: GeneticAlgorithmParams -> IO Double
-argMinAccuracy2D = fmap (metric2D actualArgMin2D) . argMinRes2D
+argMinRes3D :: GeneticAlgorithmParams -> IO (Point3D Double)
+argMinRes3D = fmap sel2 . argMinFull3D
+
+argMinAccuracy :: GeneticAlgorithmParams -> IO Double
+argMinAccuracy
+  | mode2D = fmap (metric2D actualArgMin2D) . argMinRes2D
+  | otherwise = fmap (metric3D actualArgMin3D) . argMinRes3D
 
 argMinPopulations2D :: GeneticAlgorithmParams -> IO [[Point2D Double]]
 argMinPopulations2D = fmap sel3 . argMinFull2D
 
-argMinIterationsCount2D :: GeneticAlgorithmParams -> IO IterationsCount
-argMinIterationsCount2D = fmap genericLength . argMinPopulations2D
+argMinPopulations3D :: GeneticAlgorithmParams -> IO [[Point3D Double]]
+argMinPopulations3D = fmap sel3 . argMinFull3D
+
+argMinIterationsCount :: GeneticAlgorithmParams -> IO IterationsCount
+argMinIterationsCount
+  | mode2D = fmap genericLength . argMinPopulations2D
+  | otherwise = fmap genericLength . argMinPopulations3D
 
 average
     :: Real a
@@ -83,14 +99,20 @@ average cnt action = do
     return ((fromRational . toRational $ sum results) / fromIntegral cnt)
 
 main :: IO ()
-main = main2D
-
-main2D :: IO ()
-main2D = do
-    putStrLn "2D mode"
+main = do
+    putStrLn $ if mode2D then "2D mode" else "3D mode"
+    exists <- doesDirectoryExist directoryPath
+    when exists $ removeDirectoryRecursive directoryPath
+    createDirectory directoryPath
     putStrLn "Running algorithm…"
     putStrLn "Parameters:"
     print defaultGap
+    if mode2D then main2D else main3D
+    putStrLn "Measuring statistics…"
+    measureStatistics
+
+main2D :: IO ()
+main2D = do
     (secs,res,populations) <- argMinFull2D defaultGap
     putStrLn $
         mconcat
@@ -99,9 +121,6 @@ main2D = do
             , ". Generations: "
             , show $ length populations]
     putStrLn $ mconcat ["Algorithm took ", show secs, " seconds"]
-    exists <- doesDirectoryExist directoryPath
-    when exists $ removeDirectoryRecursive directoryPath
-    createDirectory directoryPath
     putStrLn "Drawing charts…"
     drawPopulations3D
         directoryPath
@@ -111,8 +130,17 @@ main2D = do
         (curry $ f2D . Point2D)
         (map (map getPoint2D) populations)
     putStrLn "Charts are ready"
-    putStrLn "Measuring statistics…"
-    measureStatistics
+
+main3D :: IO ()
+main3D = do
+    (secs,res,populations) <- argMinFull3D defaultGap
+    putStrLn $
+        mconcat
+            [ "Result is "
+            , show res
+            , ". Generations: "
+            , show $ length populations]
+    putStrLn $ mconcat ["Algorithm took ", show secs, " seconds"]
 
 data StatArg =
     forall a. Real a => StatArg String
@@ -155,9 +183,9 @@ measureStatistics =
             mutationProbabilities
             setMutationProbability
     args = [populationSizeArg, xProbabilityArg, mutationProbabilityArg]
-    secondsValue = StatValue "time_s" argMinSeconds2D
-    accuracyValue = StatValue "accuracy" argMinAccuracy2D
-    iterationsCountValue = StatValue "iterations count" argMinIterationsCount2D
+    secondsValue = StatValue "time_s" argMinSeconds
+    accuracyValue = StatValue "accuracy" argMinAccuracy
+    iterationsCountValue = StatValue "iterations count" argMinIterationsCount
     values = [secondsValue, accuracyValue, iterationsCountValue]
 
 measureSomething :: StatArg -> StatValue -> IO ()
