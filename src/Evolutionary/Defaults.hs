@@ -16,7 +16,7 @@ stopCriterion
     => IterationsCount -> [a] -> Bool
 stopCriterion cnt prevValues = cnt >= 50 || checkValues
   where
-    firstSame = 5
+    firstSame = 15
     checkValues =
         length prevValues >= firstSame &&
         all (== head prevValues) (take firstSame prevValues)
@@ -30,7 +30,7 @@ defaultGap =
     }
 
 populationSizes :: [PopulationSize]
-populationSizes = [20, 30, 50, 100, 120, 150, 175, 200, 300]
+populationSizes = [20, 30, 50, 100, 120, 150, 175, 200, 250, 300]
 
 crossingoverProbabilities :: [Double]
 crossingoverProbabilities = [0.5, 0.55, 0.6, 0.7, 0.8, 0.9, 0.95, 1]
