@@ -28,6 +28,7 @@ data BinaryIndividual = BinaryIndividual
 
 instance Individual BinaryIndividual where
     type GenerationParams BinaryIndividual = IndividualLength
+
     randomIndividual :: IndividualLength -> IO BinaryIndividual
     randomIndividual len = do
         bits <- sequence $ genericReplicate len (randomBool 0.5)
@@ -35,8 +36,10 @@ instance Individual BinaryIndividual where
       where
         step False = (`shiftL` 1)
         step True = (`setBit` 0) . (`shiftL` 1)
+
     cross :: BinaryIndividual -> BinaryIndividual -> IO [BinaryIndividual]
     cross i0 i1 = (\k -> cross' k i0 i1) <$> randomRIO (0, biLength i0 - 1)
+
     mutate :: BinaryIndividual -> IO BinaryIndividual
     mutate (BinaryIndividual i len) =
         (flip BinaryIndividual len . complementBit i) <$>

@@ -10,8 +10,9 @@ cabal-version:         >=1.18
 
 library
   exposed-modules:     Evolutionary.Chart
-                       Evolutionary.Genetic
                        Evolutionary.Extremum
+                       Evolutionary.Genetic
+                       Evolutionary.Multidimensional
   other-modules:       Evolutionary.BinaryIndividual
                        Evolutionary.Individual
                        Evolutionary.RandomUtil
