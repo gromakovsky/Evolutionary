@@ -10,6 +10,7 @@ cabal-version:         >=1.18
 
 library
   exposed-modules:     Evolutionary.Chart
+                       Evolutionary.Defaults
                        Evolutionary.Extremum
                        Evolutionary.Genetic
                        Evolutionary.Multidimensional

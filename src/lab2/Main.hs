@@ -10,8 +10,12 @@ import           System.Directory              (createDirectory,
 import           System.TimeIt                 (timeItT)
 
 import           Evolutionary.Chart            (drawPopulations, drawStatistics)
+import           Evolutionary.Defaults         (crossingoverProbabilities,
+                                                defaultGap,
+                                                mutationProbabilities,
+                                                populationSizes, stopCriterion)
 import           Evolutionary.Genetic          (GeneticAlgorithmParams (..),
-                                                IterationsCount, PopulationSize)
+                                                IterationsCount)
 import           Evolutionary.Multidimensional (Point2D, Range, Rectangle2D,
                                                 argMin2D)
 
@@ -27,35 +31,8 @@ r2D = (range, range)
 actualArgMin :: Point2D Double
 actualArgMin = (1, 1)
 
-stopCriterion
-    :: Eq a
-    => IterationsCount -> [a] -> Bool
-stopCriterion cnt prevValues = cnt >= 50 || checkValues
-  where
-    firstSame = 5
-    checkValues =
-        length prevValues >= firstSame &&
-        all (== head prevValues) (take firstSame prevValues)
-
 directoryPath :: FilePath
 directoryPath = "lab2-charts"
-
-defaultGap :: GeneticAlgorithmParams
-defaultGap =
-    GeneticAlgorithmParams
-    { gapPopulationSize = 50
-    , gapCrossingoverProbability = 0.6
-    , gapMutationProbability = 5.0e-3
-    }
-
-populationSizes :: [PopulationSize]
-populationSizes = [20, 30, 50, 100, 120, 150, 175, 200, 300]
-
-crossingoverProbabilities :: [Double]
-crossingoverProbabilities = [0.5, 0.55, 0.6, 0.7, 0.8, 0.9, 0.95, 1]
-
-mutationProbabilities :: [Double]
-mutationProbabilities = [0, 0.002 .. 0.02]
 
 argMinFull :: GeneticAlgorithmParams
            -> IO (Double, Point2D Double, [[Point2D Double]])
