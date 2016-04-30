@@ -5,6 +5,7 @@ module Evolutionary.Chart
        ( drawPopulations
        , drawPopulations3D
        , drawStatistics
+       , drawPoints3D
        ) where
 
 import           Control.Lens                           ((.=))
@@ -89,3 +90,33 @@ drawStatistics dir argName statName args f = do
     toDouble = fromRational . toRational
     fullName = mconcat [statName, " (", argName, ")"]
     fileName = dir </> fullName <.> "png"
+
+drawPoints3D
+    :: FilePath
+    -> Word
+    -> (Double, Double)
+    -> (Double, Double)
+    -> [[(Double, Double, Double)]]
+    -> IO ()
+drawPoints3D dir interval xRange yRange points =
+    mapM_ (drawPoints3DDo dir xRange yRange) $
+    map
+        (\i ->
+              (i + 1, points `genericIndex` i))
+        [0,interval .. genericLength points - 1]
+
+drawPoints3DDo
+    :: FilePath
+    -> (Double, Double)
+    -> (Double, Double)
+    -> (Word, [(Double, Double, Double)])
+    -> IO Bool
+drawPoints3DDo dir (xLo,xHi) (yLo,yHi) (i,points) =
+    plot (PNG fileName) [pointsGraph]
+  where
+    fileName = dir </> (padLeft '0' 3 $ show i) <.> "png"
+    pointsGraph =
+        Data3D
+            [Color Red, Title "Population"]
+            [RangeX xLo xHi, RangeY yLo yHi]
+            points
