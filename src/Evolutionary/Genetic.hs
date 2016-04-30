@@ -85,7 +85,7 @@ simpleGA _gaiParams@GeneticAlgorithmParams{..} genParams _gaiFitness _gaiStopCri
             , _gasBestIndividuals = [findBest _gaiFitness _gasLastPopulation]
             , ..
             }
-    (individual,_,output) <- runRWST simpleGADo inp st
+    (individual,_,output) <- runRWST (tell [_gasLastPopulation] >> simpleGADo) inp st
     return $ (individual, output)
 
 simpleGADo :: (Individual i, Num a, Ord a, Random a) => GAMonad i a i
