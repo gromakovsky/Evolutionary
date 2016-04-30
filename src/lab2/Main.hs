@@ -9,12 +9,12 @@ import           System.Directory              (createDirectory,
                                                 removeDirectoryRecursive)
 import           System.TimeIt                 (timeItT)
 
-import           Evolutionary.Chart            (drawPopulations3D,
+import           Evolutionary.Chart            (drawPoints3D, drawPopulations3D,
                                                 drawStatistics)
 import           Evolutionary.Defaults         (crossingoverProbabilities,
-                                                defaultGap,
                                                 mutationProbabilities,
                                                 populationSizes, stopCriterion)
+import qualified Evolutionary.Defaults         as D
 import           Evolutionary.Genetic          (GeneticAlgorithmParams (..),
                                                 IterationsCount)
 import           Evolutionary.Multidimensional (Point2D (..), Point3D (..),
@@ -51,14 +51,14 @@ directoryPath :: FilePath
 directoryPath = "lab2-charts"
 
 argMinFull2D :: GeneticAlgorithmParams
-           -> IO (Double, Point2D Double, [[Point2D Double]])
+             -> IO (Double, Point2D Double, [[Point2D Double]])
 argMinFull2D gap = do
     (secs,(res,populations)) <-
         timeItT $ argMin gap stopCriterion r2D f2D
     return (secs, res, populations)
 
 argMinFull3D :: GeneticAlgorithmParams
-           -> IO (Double, Point3D Double, [[Point3D Double]])
+             -> IO (Double, Point3D Double, [[Point3D Double]])
 argMinFull3D gap = do
     (secs,(res,populations)) <-
         timeItT $ argMin gap stopCriterion r3D f3D
@@ -98,6 +98,12 @@ average cnt action = do
     results <- sequence $ genericReplicate cnt action
     return ((fromRational . toRational $ sum results) / fromIntegral cnt)
 
+defaultGap :: GeneticAlgorithmParams
+defaultGap =
+    D.defaultGap
+    { gapPopulationSize = 200
+    }
+
 main :: IO ()
 main = do
     putStrLn $ if mode2D then "2D mode" else "3D mode"
@@ -113,7 +119,7 @@ main = do
 
 main2D :: IO ()
 main2D = do
-    (secs,res,populations) <- argMinFull2D defaultGap
+    (secs,res,populations) <- argMinFull2D defaultGap { gapPopulationSize = 150 }
     putStrLn $
         mconcat
             [ "Result is "
@@ -141,6 +147,14 @@ main3D = do
             , ". Generations: "
             , show $ length populations]
     putStrLn $ mconcat ["Algorithm took ", show secs, " seconds"]
+    putStrLn "Drawing charts…"
+    drawPoints3D
+        directoryPath
+        1
+        range
+        range
+        (map (map getPoint3D) populations)
+    putStrLn "Charts are ready"
 
 data StatArg =
     forall a. Real a => StatArg String
