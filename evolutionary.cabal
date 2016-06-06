@@ -73,6 +73,7 @@ executable evolutionary-lab3
                      , directory
                      , evolutionary
                      , file-embed
+                     , serokell-core
                      , text >= 1.2.2.1
                      , timeit
                      , tuple

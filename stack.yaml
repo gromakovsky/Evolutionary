@@ -6,6 +6,9 @@ resolver: lts-6.2
 # Local packages, usually specified by relative directory name
 packages:
 - '.'
+- location:
+    git: https://github.com/serokell/serokell-core.git
+    commit: 9a822f6320bf5cdbf8056e9115e4361267f0d710
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps: [tuple-0.3.0.2, OneTuple-0.2.1, easyplot-1.0]

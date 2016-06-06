@@ -4,6 +4,9 @@ import           Data.FileEmbed        (embedStringFile, makeRelativeToProject)
 import           Data.List             (genericIndex, genericLength)
 import           Data.String           (IsString)
 import qualified Data.Text             as T
+import qualified Data.Text.IO          as TIO
+
+import           Serokell.Util         (format', formatSingle')
 
 import           Evolutionary.Defaults (defaultGap)
 import           Evolutionary.TSP      (CrossoverType (..),
@@ -21,7 +24,7 @@ weights :: Word -> Word -> Double
 weights a b = matrix `genericIndex` a `genericIndex` b
 
 stopCriterion :: StopCriterion
-stopCriterion = (> 400)
+stopCriterion = (> 75)
 
 bestRoute :: [Word]
 bestRoute =
@@ -55,12 +58,23 @@ bestRoute =
     , 13
     , 24]
 
+toDot :: [Word] -> T.Text
+toDot route =
+    T.unlines $
+    ("digraph {" : map showVertex [1 .. length route]) ++
+    showEdges route ++ ["}"]
+  where
+    showVertex = formatSingle' "  {};"
+    showEdges (x:y:xs) = format' "  {} -> {};" (x, y) : showEdges (y : xs)
+    showEdges _ = []
+
 main :: IO ()
 main = do
     putStrLn "Best route:"
     print bestRoute
     putStrLn "Best length:"
     print $ totalWeight weights $ map pred bestRoute
+    TIO.writeFile "best.dot" $ toDot bestRoute
     foundRoute <-
         geneticTSP
             (genericLength matrix)
@@ -72,3 +86,4 @@ main = do
     print . map succ $ foundRoute
     putStrLn "Length is:"
     print $ totalWeight weights foundRoute
+    TIO.writeFile "found.dot" $ toDot $ map succ foundRoute
