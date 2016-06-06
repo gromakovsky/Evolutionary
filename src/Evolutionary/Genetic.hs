@@ -11,10 +11,12 @@ module Evolutionary.Genetic
        , StopCriterion
        , GeneticAlgorithmParams (..)
        , simpleGA
+       , findBest
        ) where
 
 import           Control.Lens            (makeLenses, use, view, (%=), (+=),
                                           (.=))
+import           Control.Monad           (when)
 import           Control.Monad.IO.Class  (MonadIO (liftIO))
 import           Control.Monad.RWS       (RWST (runRWST))
 import           Control.Monad.Writer    (tell)
@@ -94,6 +96,7 @@ simpleGADo = do
     criterion <- view gaiStopCriterion
     cnt <- use gasIterationsCount
     bestIndividuals <- use gasBestIndividuals
+    when (cnt /= 0 && cnt `mod` 10 == 0) $ liftIO $ print cnt
     if criterion cnt bestIndividuals
         then return res
         else simpleGADo
