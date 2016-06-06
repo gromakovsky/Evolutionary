@@ -171,7 +171,6 @@ geneticTSP :: Word
 geneticTSP n ct weights gap sc =
     convertRes <$> simpleGA gap (n, ct) fitness sc'
   where
-    fitness NeighborhoodIndividual{..} =
-        totalWeight weights $ neighborhoodToSequence niList
+    fitness = (0 -) . totalWeight weights . neighborhoodToSequence . niList
     sc' i _ = sc i
     convertRes = neighborhoodToSequence . niList . fst
