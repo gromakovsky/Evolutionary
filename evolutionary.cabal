@@ -84,3 +84,20 @@ executable evolutionary-lab3
                      , RecordWildCards
                      , DeriveDataTypeable
                      , GeneralizedNewtypeDeriving
+
+executable evolutionary-lab4
+  main-is:             Main.hs
+  build-depends:       base >= 4.8
+                     , directory
+                     , evolutionary
+                     , serokell-core
+                     , text >= 1.2.2.1
+                     , timeit
+                     , tuple
+  hs-source-dirs:      src/lab4
+  default-language:    Haskell2010
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -Wall -fno-warn-orphans
+  default-extensions:  OverloadedStrings
+                     , RecordWildCards
+                     , DeriveDataTypeable
+                     , GeneralizedNewtypeDeriving
