@@ -8,6 +8,7 @@ import qualified Data.Text.IO          as TIO
 
 import           Serokell.Util         (format', formatSingle')
 
+import           Evolutionary.Chart    (drawRoute)
 import           Evolutionary.Defaults (defaultGap)
 import           Evolutionary.TSP      (CrossoverType (..),
                                         GeneticAlgorithmParams (..),
@@ -22,6 +23,14 @@ matrix = map (map (read . T.unpack)) . map T.words . T.lines $ matrixStr
 
 weights :: Word -> Word -> Double
 weights a b = matrix `genericIndex` a `genericIndex` b
+
+coordsStr :: IsString s => s
+coordsStr = $(makeRelativeToProject "src/lab3/bays29.coords" >>= embedStringFile)
+
+coords :: [(Double, Double)]
+coords = map f . map T.words . T.lines $ coordsStr
+  where
+    f l = (read . T.unpack $ l !! 0, read . T.unpack $ l !! 1)
 
 stopCriterion :: StopCriterion
 stopCriterion = (> 75)
@@ -75,6 +84,7 @@ main = do
     putStrLn "Best length:"
     print $ totalWeight weights $ map pred bestRoute
     TIO.writeFile "best.dot" $ toDot bestRoute
+    () <$ drawRoute "best.png" coords (map pred bestRoute)
     foundRoute <-
         geneticTSP
             (genericLength matrix)
@@ -86,4 +96,4 @@ main = do
     print . map succ $ foundRoute
     putStrLn "Length is:"
     print $ totalWeight weights foundRoute
-    TIO.writeFile "found.dot" $ toDot $ map succ foundRoute
+    () <$ drawRoute "found.png" coords foundRoute

@@ -6,13 +6,17 @@ module Evolutionary.Chart
        , drawPopulations3D
        , drawStatistics
        , drawPoints3D
+       , drawRoute
        ) where
 
 import           Control.Lens                           ((.=))
 import           Data.List                              (genericIndex,
                                                          genericLength)
-import           Graphics.EasyPlot                      (Color (..), Graph3D (Function3D, Data3D),
-                                                         Option (Color, Title), Option3D (RangeX, RangeY),
+import           Graphics.EasyPlot                      (Color (..),
+                                                         Graph2D (..),
+                                                         Graph3D (..),
+                                                         Option (..), Option3D (RangeX, RangeY),
+                                                         Style (Lines),
                                                          TerminalType (PNG),
                                                          plot)
 import           Graphics.Rendering.Chart.Backend.Cairo (toFile)
@@ -120,3 +124,11 @@ drawPoints3DDo dir (xLo,xHi) (yLo,yHi) (i,points) =
             [Color Red, Title "Population"]
             [RangeX xLo xHi, RangeY yLo yHi]
             points
+
+drawRoute :: FilePath -> [(Double, Double)] -> [Word] -> IO Bool
+drawRoute fileName coords route = plot (PNG fileName) [points, lns]
+  where
+    points = Data2D [Color Red, Title "Towns"] [] coords
+    lns =
+        Data2D [Color Green, Style Lines, Title "Route"] [] $
+        map (coords `genericIndex`) route
