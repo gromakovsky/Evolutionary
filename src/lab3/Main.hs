@@ -1,19 +1,23 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE TemplateHaskell           #-}
 
 import           Data.FileEmbed        (embedStringFile, makeRelativeToProject)
+import           Data.Foldable         (forM_)
 import           Data.List             (genericIndex, genericLength)
 import           Data.String           (IsString)
 import qualified Data.Text             as T
 import qualified Data.Text.IO          as TIO
+import           System.TimeIt         (timeItT)
 
 import           Serokell.Util         (format', formatSingle')
 
-import           Evolutionary.Chart    (drawRoute)
+import           Evolutionary.Chart    (drawRoute, drawStatistics)
+import           Evolutionary.Defaults (crossingoverProbabilities,
+                                        mutationProbabilities)
 import qualified Evolutionary.Defaults as D (defaultGap)
 import           Evolutionary.TSP      (CrossoverType (..),
                                         GeneticAlgorithmParams (..),
-                                        IterationsCount, StopCriterion,
-                                        geneticTSP, totalWeight)
+                                        StopCriterion, geneticTSP, totalWeight)
 
 matrixStr :: IsString s => s
 matrixStr = $(makeRelativeToProject "src/lab3/bays29.tsp" >>= embedStringFile)
@@ -33,7 +37,7 @@ coords = map f . map T.words . T.lines $ coordsStr
     f l = (read . T.unpack $ l !! 0, read . T.unpack $ l !! 1)
 
 stopCriterion :: StopCriterion
-stopCriterion = (> 350)
+stopCriterion = (> 120)
 
 bestRoute :: [Word]
 bestRoute =
@@ -67,6 +71,9 @@ bestRoute =
     , 13
     , 24]
 
+bestWeight :: Double
+bestWeight = totalWeight weights $ map pred bestRoute
+
 toDot :: [Word] -> T.Text
 toDot route =
     T.unlines $
@@ -85,23 +92,99 @@ defaultGap =
     , gapMutationProbability = 0.01
     }
 
+findRoute :: GeneticAlgorithmParams -> IO [Word]
+findRoute gap = geneticTSP (genericLength matrix) AlternatingEdges weights gap stopCriterion
+
+findTime :: GeneticAlgorithmParams -> IO Double
+findTime gap =
+    fst <$>
+    timeItT
+        (geneticTSP
+             (genericLength matrix)
+             AlternatingEdges
+             weights
+             gap
+             stopCriterion)
+
+findAccuracy :: GeneticAlgorithmParams -> IO Double
+findAccuracy gap =
+    abs . (bestWeight -) . w <$>
+    geneticTSP
+        (genericLength matrix)
+        AlternatingEdges
+        weights
+        gap
+        stopCriterion
+  where
+    w = totalWeight weights
+
 main :: IO ()
 main = do
     putStrLn "Best route:"
     print bestRoute
     putStrLn "Best length:"
-    print $ totalWeight weights $ map pred bestRoute
+    print bestWeight
     TIO.writeFile "best.dot" $ toDot bestRoute
     () <$ drawRoute "best.png" coords (map pred bestRoute)
-    foundRoute <-
-        geneticTSP
-            (genericLength matrix)
-            AlternatingEdges
-            weights
-            defaultGap
-            stopCriterion
+    foundRoute <- findRoute defaultGap
     putStrLn "Found route:"
     print . map succ $ foundRoute
     putStrLn "Length is:"
     print $ totalWeight weights foundRoute
     () <$ drawRoute "found.png" coords foundRoute
+    measureStatistics
+
+data StatArg =
+    forall a. Real a => StatArg String
+                                [a]
+                                (a -> GeneticAlgorithmParams)
+
+data StatValue =
+    forall a. Real a => StatValue String
+                                  (GeneticAlgorithmParams -> IO a)
+
+measureStatistics :: IO ()
+measureStatistics =
+    forM_ args $
+    \arg ->
+         forM_ values $
+         \v ->
+              measureSomething arg v
+  where
+    setXProbability p =
+        defaultGap
+        { gapCrossingoverProbability = p
+        }
+    setMutationProbability p =
+        defaultGap
+        { gapMutationProbability = p
+        }
+    xProbabilityArg =
+        StatArg
+            "crossingover probability"
+            crossingoverProbabilities
+            setXProbability
+    mutationProbabilityArg =
+        StatArg
+            "mutation probability"
+            mutationProbabilities
+            setMutationProbability
+    args = [xProbabilityArg, mutationProbabilityArg]
+    secondsValue = StatValue "time_s" findTime
+    accuracyValue = StatValue "accuracy" findAccuracy
+    values = [secondsValue, accuracyValue]
+
+measureSomething :: StatArg -> StatValue -> IO ()
+measureSomething (StatArg argName xs params) (StatValue statName action) =
+    measureSomethingDo argName statName xs params action
+
+measureSomethingDo
+    :: (Real x, Real y)
+    => String
+    -> String
+    -> [x]
+    -> (x -> GeneticAlgorithmParams)
+    -> (GeneticAlgorithmParams -> IO y)
+    -> IO ()
+measureSomethingDo argName statName xs params action =
+    drawStatistics "stats" argName statName xs (action . params)
