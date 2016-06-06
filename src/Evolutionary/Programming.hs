@@ -18,6 +18,7 @@ module Evolutionary.Programming
 import           Control.Monad           (replicateM)
 import           Data.List               (genericIndex)
 import           Data.Text.Buildable     (Buildable (build))
+import qualified Data.Text.Format as F
 import           System.Random           (Random (randomRIO))
 
 import           Evolutionary.Genetic    (GeneticAlgorithmParams (..),
@@ -57,7 +58,23 @@ data BinaryOp
     deriving (Show)
 
 instance Buildable Node where
-    build = build . show
+    build (TNode t) = build t
+    build (UNode UAbs t) = F.build "abs({})" $ F.Only t
+    build (UNode USin t) = F.build "sin({})" $ F.Only t
+    build (UNode UCos t) = F.build "cos({})" $ F.Only t
+    build (UNode UExp t) = F.build "exp({})" $ F.Only t
+    build (BNode BPlus t1 t2) = F.build "{} + {}" (t1, t2)
+    build (BNode BMinus t1 t2) = F.build "{} - {}" (t1, t2)
+    build (BNode BMult t1 t2) = F.build "{} * {}" (t1, t2)
+    build (BNode BDiv t1 t2) = F.build "{} / {}" (t1, t2)
+    build (BNode BPower t1 t2) = F.build "{} ** {}" (t1, t2)
+
+instance Buildable Terminal where
+    build (TermVar i) = F.build "x_{}" $ F.Only i
+    build TermPi = "pi"
+    build TermTen = "10"
+    build TermTwo = "2"
+    build TermZero = "0"
 
 randomNode :: Word -> Word -> IO Node
 randomNode maxDepth varsNum = do
@@ -71,12 +88,14 @@ randomNode maxDepth varsNum = do
 
 randomTerminal :: Word -> IO Terminal
 randomTerminal varsNum = do
-    t <- randomRIO (0, 5)
+    t <- randomRIO (0, 6)
     case t of
         (0 :: Int) -> TermVar <$> randomRIO (0, varsNum - 1)
-        1 -> pure TermPi
-        2 -> pure TermTen
-        3 -> pure TermTwo
+        (1 :: Int) -> TermVar <$> randomRIO (0, varsNum - 1)
+        (2 :: Int) -> TermVar <$> randomRIO (0, varsNum - 1)
+        3 -> pure TermPi
+        4 -> pure TermTen
+        5 -> pure TermTwo
         _ -> pure TermZero
 
 randomUOp :: IO UnaryOp

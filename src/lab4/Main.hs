@@ -26,7 +26,7 @@ defaultGap =
     }
 
 stopCriterion :: StopCriterion
-stopCriterion = (> 25)
+stopCriterion = (> 20)
 
 main :: IO ()
 main = do
