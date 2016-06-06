@@ -9,6 +9,9 @@ module Evolutionary.TSP
        , StopCriterion
        , IterationsCount
        , GeneticAlgorithmParams (..)
+       , neighborhoodCross
+       , neighborhoodToSequence
+       , niCrossoverType
        , totalWeight
        , geneticTSP
        ) where
@@ -40,13 +43,15 @@ data CrossoverType
     deriving (Show, Eq)
 
 neighborhoodToSequence :: [Word] -> [Word]
-neighborhoodToSequence = (0 :) . neighborhoodToSequence' 0
+neighborhoodToSequence = (0 :) . neighborhoodToSequence' 0 0
   where
-    neighborhoodToSequence' _ [] = []
-    neighborhoodToSequence' i l =
-        case l `genericIndex` i of
-            0 -> []
-            i' -> i' : neighborhoodToSequence' i' l
+    neighborhoodToSequence' _ _ [] = []
+    neighborhoodToSequence' i visited l
+      | visited > length l = []
+      | otherwise =
+          case l `genericIndex` i of
+              0 -> []
+              i' -> i' : neighborhoodToSequence' i' (succ visited) l
 
 sequenceToNeighborhood :: [Word] -> [Word]
 sequenceToNeighborhood [] = []
@@ -69,12 +74,17 @@ data CrossState = CrossState
 $(makeLenses ''CrossState)
 
 neighborhoodCross :: Bool -> [Word] -> [Word] -> IO [[Word]]
-neighborhoodCross subtour i1 i2 =
-    map (map fromJust . view csRes) <$>
-    replicateM
-        2
-        (execStateT (neighborhoodCrossDo True) $
-         CrossState i1 i2 $ replicate (length i1) Nothing)
+neighborhoodCross _ i1 i2 = replicateM 3 impl
+  where
+    impl = do
+        res <-
+            map fromJust . view csRes <$>
+            (execStateT (neighborhoodCrossDo True) $
+             CrossState i1 i2 $ replicate (length i1) Nothing)
+        if isGood res
+            then return res
+            else impl
+    isGood l = length (neighborhoodToSequence l) == length l
 
 neighborhoodCrossDo :: Bool -> StateT CrossState IO ()
 neighborhoodCrossDo useFirst = do
@@ -88,10 +98,10 @@ neighborhoodCrossDo useFirst = do
             => a
         n = genericLength nb
     oldRes <- use csRes
-    i <- randomRIOWithPredicate (pure . isJust . (oldRes !!)) (0, n - 1)
+    i <- randomRIOWithPredicate (pure . not . isJust . (oldRes !!)) (0, n - 1)
     csRes . ix i .= Just (nb !! i)
     whileM_ (isBad <$> use csRes) $
-        do let p r = elem r . catMaybes <$> use csRes
+        do let p r = not . elem r . catMaybes <$> use csRes
            r <- randomRIOWithPredicate p (0, n - 1)
            csRes . ix i .= Just r
     newRes <- use csRes
@@ -102,7 +112,7 @@ randomRIOWithPredicate :: (MonadIO m, Random a) => (a -> m Bool) -> (a, a) -> m 
 randomRIOWithPredicate p r = do
     iRef <- liftIO $ newIORef =<< randomRIO r
     whileM_
-        (join $ p <$> liftIO (readIORef iRef))
+        (join $ (fmap not . p) <$> liftIO (readIORef iRef))
         (liftIO $ writeIORef iRef =<< randomRIO r)
     liftIO $ readIORef iRef
 
@@ -159,8 +169,12 @@ type StopCriterion = IterationsCount -> Bool
 type WeightF = Word -> Word -> Double
 
 totalWeight :: WeightF -> [Word] -> Double
-totalWeight weights (x:y:xs) = weights x y + totalWeight weights (y : xs)
+totalWeight weights l@(x:_:_) = totalWeight' weights l + weights x (last l)
 totalWeight _ _ = 0
+
+totalWeight' :: WeightF -> [Word] -> Double
+totalWeight' weights (x:y:xs) = weights x y + totalWeight' weights (y : xs)
+totalWeight' _ _ = 0
 
 geneticTSP :: Word
            -> CrossoverType

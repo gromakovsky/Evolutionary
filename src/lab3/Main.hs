@@ -9,7 +9,7 @@ import qualified Data.Text.IO          as TIO
 import           Serokell.Util         (format', formatSingle')
 
 import           Evolutionary.Chart    (drawRoute)
-import           Evolutionary.Defaults (defaultGap)
+import qualified Evolutionary.Defaults as D (defaultGap)
 import           Evolutionary.TSP      (CrossoverType (..),
                                         GeneticAlgorithmParams (..),
                                         IterationsCount, StopCriterion,
@@ -33,7 +33,7 @@ coords = map f . map T.words . T.lines $ coordsStr
     f l = (read . T.unpack $ l !! 0, read . T.unpack $ l !! 1)
 
 stopCriterion :: StopCriterion
-stopCriterion = (> 75)
+stopCriterion = (> 350)
 
 bestRoute :: [Word]
 bestRoute =
@@ -76,6 +76,14 @@ toDot route =
     showVertex = formatSingle' "  {};"
     showEdges (x:y:xs) = format' "  {} -> {};" (x, y) : showEdges (y : xs)
     showEdges _ = []
+
+defaultGap :: GeneticAlgorithmParams
+defaultGap =
+    D.defaultGap
+    { gapPopulationSize = 200
+    , gapCrossingoverProbability = 0.8
+    , gapMutationProbability = 0.01
+    }
 
 main :: IO ()
 main = do
