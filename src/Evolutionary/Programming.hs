@@ -18,7 +18,7 @@ module Evolutionary.Programming
 import           Control.Monad           (replicateM)
 import           Data.List               (genericIndex)
 import           Data.Text.Buildable     (Buildable (build))
-import qualified Data.Text.Format as F
+import qualified Data.Text.Format        as F
 import           System.Random           (Random (randomRIO))
 
 import           Evolutionary.Genetic    (GeneticAlgorithmParams (..),
@@ -127,6 +127,9 @@ safePower :: Double -> Double -> Double
 safePower 0 0 = 0
 safePower a b = abs a ** b
 
+isGood :: Double -> Bool
+isGood n = not (isNaN n) && not (isInfinite n)
+
 myEval :: Node -> [Double] -> Double
 myEval n args
   | isNaN res = 0
@@ -210,14 +213,17 @@ geneticProgramming :: Word
                    -> StopCriterion
                    -> IO [Node]
 geneticProgramming varsNum (varMin,varMax) f gap sc =
-    convertRes <$> simpleGA gap (4, varsNum) fitness sc'
+    convertRes <$> simpleGA gap (6, varsNum) fitness sc'
   where
     genArgs =
         replicateM
             (fromIntegral varsNum)
             [varMin,varMin + (varMax - varMin) / 2 .. varMax]
     fitness ProgrammingIndividual{..} =
-        (0-) . sum . map (** 2) . map (diff piNode) $ genArgs
+        let res = (0 -) . sum . map (** 2) . map (diff piNode) $ genArgs
+        in if isGood res
+               then res
+               else -1.0e10
     diff n a = f a - myEval n a
     sc' i _ = sc i
     convertRes (res,populations) =
