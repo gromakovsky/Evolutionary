@@ -29,16 +29,16 @@ import           Evolutionary.Genetic    (FitnessF, GeneticAlgorithmParams (..),
 import           Evolutionary.Individual (Individual (..))
 
 data Node
-    = TNode Terminal
-    | UNode UnaryOp
-            Node
-    | BNode BinaryOp
-            Node
-            Node
+    = TNode !Terminal
+    | UNode !UnaryOp
+            !Node
+    | BNode !BinaryOp
+            !Node
+            !Node
     deriving (Show)
 
 data Terminal
-    = TermVar Word
+    = TermVar !Word
     | TermPi
     | TermTen
     | TermTwo
@@ -257,7 +257,7 @@ geneticProgramming :: Word
                    -> StopCriterion
                    -> IO [Node]
 geneticProgramming varsNum range f gap sc =
-    convertRes <$> simpleGA gap (6, varsNum) (fitness range f) sc'
+    convertRes <$> simpleGA gap (5, varsNum) (fitness range f) sc'
   where
     sc' i _ = sc i
     convertRes (res,populations) =

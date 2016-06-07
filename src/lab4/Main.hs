@@ -23,7 +23,9 @@ varRange = (-5.12, 5.12)
 defaultGap :: GeneticAlgorithmParams
 defaultGap =
     D.defaultGap
-    { gapPopulationSize = 20
+    { gapPopulationSize = 40
+    , gapCrossingoverProbability = 0.8
+    , gapMutationProbability = 0.02
     }
 
 stopCriterion :: StopCriterion
