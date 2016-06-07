@@ -6,7 +6,8 @@ import           Serokell.Util            (formatSingle', show')
 
 import qualified Evolutionary.Defaults    as D (defaultGap)
 import           Evolutionary.Programming (GeneticAlgorithmParams (..),
-                                           StopCriterion, geneticProgramming)
+                                           StopCriterion, averageValue, delta,
+                                           geneticProgramming)
 
 n :: Num a => a
 n = 9
@@ -31,6 +32,10 @@ stopCriterion = (> 20)
 main :: IO ()
 main = do
     res <- geneticProgramming n varRange f defaultGap stopCriterion
+    let d = delta n varRange f $ head res
+        avg = averageValue n varRange f
     TIO.putStrLn . formatSingle' "Result: {}" $ head res
+    TIO.putStrLn . formatSingle' "Delta: {}" $ d
+    TIO.putStrLn . formatSingle' "Average: {}" $ avg
     TIO.putStrLn "Results:"
     mapM_ (TIO.putStrLn . show') $ tail res

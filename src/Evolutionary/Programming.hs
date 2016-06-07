@@ -12,16 +12,19 @@ module Evolutionary.Programming
        , StopCriterion
        , IterationsCount
        , GeneticAlgorithmParams (..)
+       , fitness
+       , delta
+       , averageValue
        , geneticProgramming
        ) where
 
 import           Control.Monad           (replicateM)
-import           Data.List               (genericIndex)
+import           Data.List               (genericIndex, genericLength)
 import           Data.Text.Buildable     (Buildable (build))
 import qualified Data.Text.Format        as F
 import           System.Random           (Random (randomRIO))
 
-import           Evolutionary.Genetic    (GeneticAlgorithmParams (..),
+import           Evolutionary.Genetic    (FitnessF, GeneticAlgorithmParams (..),
                                           IterationsCount, findBest, simpleGA)
 import           Evolutionary.Individual (Individual (..))
 
@@ -206,26 +209,42 @@ crossNodes n1 n2 = do
 
 type StopCriterion = IterationsCount -> Bool
 
+genArgs :: Word -> (Double, Double) -> [[Double]]
+genArgs varsNum (varMin, varMax) =
+    replicateM
+        (fromIntegral varsNum)
+        [varMin,varMin + (varMax - varMin) / 2 .. varMax]
+
+fitness :: Word -> (Double, Double) -> ([Double] -> Double) -> FitnessF ProgrammingIndividual Double
+fitness varsNum r f ProgrammingIndividual{..}
+  | isGood res = res
+  | otherwise = -1.0e10
+  where
+    res = (0 -) . sum . map (** 2) . map (diff piNode) $ genArgs varsNum r
+    diff n a = f a - myEval n a
+
+delta :: Word -> (Double, Double) -> ([Double] -> Double) -> Node -> Double
+delta varsNum r f node =
+    sqrt . abs $
+    (fitness varsNum r f $ ProgrammingIndividual node) /
+    genericLength (genArgs varsNum r)
+
+averageValue :: Word -> (Double, Double) -> ([Double] -> Double) -> Double
+averageValue varsNum r f =
+    sqrt $ sum (map ((** 2) . f) args) / genericLength args
+  where
+    args = genArgs varsNum r
+
 geneticProgramming :: Word
                    -> (Double, Double)
                    -> ([Double] -> Double)
                    -> GeneticAlgorithmParams
                    -> StopCriterion
                    -> IO [Node]
-geneticProgramming varsNum (varMin,varMax) f gap sc =
-    convertRes <$> simpleGA gap (6, varsNum) fitness sc'
+geneticProgramming varsNum range f gap sc =
+    convertRes <$> simpleGA gap (6, varsNum) (fitness varsNum range f) sc'
   where
-    genArgs =
-        replicateM
-            (fromIntegral varsNum)
-            [varMin,varMin + (varMax - varMin) / 2 .. varMax]
-    fitness ProgrammingIndividual{..} =
-        let res = (0 -) . sum . map (** 2) . map (diff piNode) $ genArgs
-        in if isGood res
-               then res
-               else -1.0e10
-    diff n a = f a - myEval n a
     sc' i _ = sc i
     convertRes (res,populations) =
         map piNode $ res : map convertResDo populations
-    convertResDo = findBest fitness
+    convertResDo = findBest (fitness varsNum range f)
