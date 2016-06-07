@@ -149,19 +149,33 @@ instance Eval Terminal where
     eval TermZero _ = 0
 
 data ProgrammingIndividual = ProgrammingIndividual
-    { piNode :: Node
+    { piNode    :: Node
+    , piVarsNum :: Word
     } deriving (Show)
 
 instance Individual ProgrammingIndividual where
     type GenerationParams ProgrammingIndividual = (Word, Word)
     randomIndividual (maxDepth,varsNum) =
-        ProgrammingIndividual <$> randomNode maxDepth varsNum
-    cross (ProgrammingIndividual n1) (ProgrammingIndividual n2) = do
-        (n1', n2') <- crossNodes n1 n2
-        return . map ProgrammingIndividual $  [n1', n2']
-    mutate a = return a
+        ProgrammingIndividual <$> randomNode maxDepth varsNum <*> pure varsNum
+    cross (ProgrammingIndividual n1 varsNum) (ProgrammingIndividual n2 _) = do
+        (n1',n2') <- crossNodes n1 n2
+        return . map (flip ProgrammingIndividual varsNum) $ [n1', n2']
+    mutate (ProgrammingIndividual node varsNum) =
+        flip ProgrammingIndividual varsNum <$>
+        (mutateDo varsNum node =<< randomPath node)
 
-randomPath :: Node -> IO [Word]
+type Path = [Word]
+
+mutateDo :: Word -> Node -> Path -> IO Node
+mutateDo varsNum (TNode _) [] = TNode <$> randomTerminal varsNum
+mutateDo _ (UNode _ n1) [] = UNode <$> randomUOp <*> pure n1
+mutateDo _ (BNode _ n1 n2) [] = BNode <$> randomBOp <*> pure n1 <*> pure n2
+mutateDo varsNum (UNode op n1) (0:xs) = UNode op <$> mutateDo varsNum n1 xs
+mutateDo varsNum (BNode op n1 n2) (0:xs) = BNode op <$> mutateDo varsNum n1 xs <*> pure n2
+mutateDo varsNum (BNode op n1 n2) (1:xs) = BNode op <$> pure n1 <*> mutateDo varsNum n2 xs
+mutateDo _ n p = error $ mconcat ["mutateDo: ", show n, ", ", show p]
+
+randomPath :: Node -> IO Path
 randomPath (TNode _) = pure []
 randomPath (UNode _ n) = do
     t <- randomRIO (0, 1)
@@ -175,7 +189,8 @@ randomPath (BNode _ n1 n2) = do
         1 -> (0 :) <$> randomPath n1
         _ -> (1 :) <$> randomPath n2
 
-walk :: Node -> [Word] -> (Node, Word)
+-- | Return node and depth.
+walk :: Node -> Path -> (Node, Word)
 walk n@(TNode _) _ = (n, 0)
 walk n [] = (n, 0)
 walk (UNode _ n) (0:xs) =
@@ -189,7 +204,7 @@ walk (BNode _ _ n) (1:xs) =
     in (t', d' + 1)
 walk n p = error $ mconcat ["walk: ", show n, ", ", show p]
 
-changeSubTree :: Node -> [Word] -> Node -> Node
+changeSubTree :: Node -> Path -> Node -> Node
 changeSubTree subTree [] _ = subTree
 changeSubTree subTree (0:xs) (UNode op n) =
     UNode op $ changeSubTree subTree xs n
@@ -215,18 +230,18 @@ genArgs varsNum (varMin, varMax) =
         (fromIntegral varsNum)
         [varMin,varMin + (varMax - varMin) / 2 .. varMax]
 
-fitness :: Word -> (Double, Double) -> ([Double] -> Double) -> FitnessF ProgrammingIndividual Double
-fitness varsNum r f ProgrammingIndividual{..}
+fitness :: (Double, Double) -> ([Double] -> Double) -> FitnessF ProgrammingIndividual Double
+fitness r f ProgrammingIndividual{..}
   | isGood res = res
   | otherwise = -1.0e10
   where
-    res = (0 -) . sum . map (** 2) . map (diff piNode) $ genArgs varsNum r
+    res = (0 -) . sum . map (** 2) . map (diff piNode) $ genArgs piVarsNum r
     diff n a = f a - myEval n a
 
 delta :: Word -> (Double, Double) -> ([Double] -> Double) -> Node -> Double
 delta varsNum r f node =
     sqrt . abs $
-    (fitness varsNum r f $ ProgrammingIndividual node) /
+    (fitness r f $ ProgrammingIndividual node varsNum) /
     genericLength (genArgs varsNum r)
 
 averageValue :: Word -> (Double, Double) -> ([Double] -> Double) -> Double
@@ -242,9 +257,9 @@ geneticProgramming :: Word
                    -> StopCriterion
                    -> IO [Node]
 geneticProgramming varsNum range f gap sc =
-    convertRes <$> simpleGA gap (6, varsNum) (fitness varsNum range f) sc'
+    convertRes <$> simpleGA gap (6, varsNum) (fitness range f) sc'
   where
     sc' i _ = sc i
     convertRes (res,populations) =
         map piNode $ res : map convertResDo populations
-    convertResDo = findBest (fitness varsNum range f)
+    convertResDo = findBest (fitness range f)
