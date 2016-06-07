@@ -63,10 +63,10 @@ instance Buildable Node where
     build (UNode USin t) = F.build "sin({})" $ F.Only t
     build (UNode UCos t) = F.build "cos({})" $ F.Only t
     build (UNode UExp t) = F.build "exp({})" $ F.Only t
-    build (BNode BPlus t1 t2) = F.build "{} + {}" (t1, t2)
-    build (BNode BMinus t1 t2) = F.build "{} - {}" (t1, t2)
-    build (BNode BMult t1 t2) = F.build "{} * {}" (t1, t2)
-    build (BNode BDiv t1 t2) = F.build "{} / {}" (t1, t2)
+    build (BNode BPlus t1 t2) = F.build "({} + {})" (t1, t2)
+    build (BNode BMinus t1 t2) = F.build "({} - {})" (t1, t2)
+    build (BNode BMult t1 t2) = F.build "({} * {})" (t1, t2)
+    build (BNode BDiv t1 t2) = F.build "({} / {})" (t1, t2)
     build (BNode BPower t1 t2) = F.build "{} ** {}" (t1, t2)
 
 instance Buildable Terminal where
